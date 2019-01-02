@@ -57,6 +57,7 @@
 #include "foundation/utility/api/specializedapiarrays.h"
 #include "foundation/utility/containers/dictionary.h"
 #include "foundation/utility/job/iabortswitch.h"
+#include "foundation/utility/makevector.h"
 #include "foundation/utility/otherwise.h"
 #include "foundation/utility/string.h"
 
@@ -79,10 +80,16 @@ namespace foundation { class SearchPaths; }
 namespace asf = foundation;
 namespace asr = renderer;
 
-//#define BRUTE_FORCE_OCTREE_INTERSECTION
 
 namespace
 {
+    //
+    // Settings.
+    //
+
+    #define BRUTE_FORCE_OCTREE_INTERSECTION
+
+
     //
     // Procedural flakes object.
     //
@@ -116,7 +123,7 @@ namespace
 
         // This method is called once before rendering each frame.
         // Returns true on success, false otherwise.
-        virtual bool on_frame_begin(
+        bool on_frame_begin(
             const asr::Project&         project,
             const asr::BaseGroup*       parent,
             asr::OnFrameBeginRecorder&  recorder,
@@ -126,8 +133,6 @@ namespace
                 return false;
 
             const asr::OnFrameBeginMessageContext context("object", this);
-
-            m_shell_thickness = get_uncached_shell_thickness();
 
             // Retrieve base object instance.
             const asr::ObjectInstance* base_object_instance = get_uncached_base_object_instance();
@@ -147,9 +152,38 @@ namespace
                 return false;
             }
 
+            // Retrieve parameters.
+            const std::string mode =
+                m_params.get_required<std::string>("mode", "flakes", asf::make_vector("flakes", "voxelization"));
+            m_mode = mode == "flakes" ? Mode::Flakes : Mode::Voxelization;
+            m_voxel_size = get_uncached_voxel_size();
+            m_flake_size = m_params.get_required<float>("flake_size", 0.05f);
+            m_flake_size_jitter = m_params.get_required<float>("flake_size_jitter", 0.2f);
+            m_flake_center_jitter = m_params.get_required<double>("flake_center_jitter", 0.8);
+            m_flakes_per_voxel = m_params.get_required<double>("flakes_per_voxel", 1.0);
+            RENDERER_LOG_DEBUG("flakes: parameters:");
+            RENDERER_LOG_DEBUG("  voxel size:           %f", m_voxel_size);
+            RENDERER_LOG_DEBUG("  flake size:           %f", m_flake_size);
+            RENDERER_LOG_DEBUG("  flake size jitter:    %f", m_flake_size_jitter);
+            RENDERER_LOG_DEBUG("  flake center jitter:  %f", m_flake_center_jitter);
+            RENDERER_LOG_DEBUG("  flakes per voxel:     %f", m_flakes_per_voxel);
+
             // Build octree.
             const asr::GAABB3 octree_root_aabb = compute_local_bbox();
-            m_octree.reset(new Octree(octree_root_aabb, *base_object_instance));
+            m_octree.reset(
+                new Octree(
+                    octree_root_aabb,
+                    *base_object_instance,
+                    m_voxel_size));
+
+            // Print octree statistics.
+            const size_t node_count = m_octree->get_node_count();
+            const asf::uint64 solid_leaf_count = static_cast<asf::uint64>(m_octree->count_solid_leaves());
+            const asf::uint64 total_flake_count = static_cast<asf::uint64>(solid_leaf_count * m_flakes_per_voxel);
+            RENDERER_LOG_DEBUG("flakes: statistics:");
+            RENDERER_LOG_DEBUG("  node count:           %s", asf::pretty_uint(node_count).c_str());
+            RENDERER_LOG_DEBUG("  solid leaf count:     %s", asf::pretty_uint(solid_leaf_count).c_str());
+            RENDERER_LOG_DEBUG("  total flake count:    %s", asf::pretty_uint(total_flake_count).c_str());
 
             // Initialize intersection statistics.
             m_cast_rays = 0;
@@ -159,7 +193,7 @@ namespace
             return true;
         }
 
-        virtual void on_frame_end(
+        void on_frame_end(
             const asr::Project&         project,
             const asr::BaseGroup*       parent) override
         {
@@ -177,13 +211,11 @@ namespace
             bbox.invalidate();
 
             const asr::ObjectInstance* base_object_instance = get_uncached_base_object_instance();
-
             if (base_object_instance != nullptr)
             {
+                const asr::GScalar voxel_size = get_uncached_voxel_size();
                 bbox = base_object_instance->compute_parent_bbox();
-
-                const asr::GScalar shell_thickness = get_uncached_shell_thickness();
-                bbox.grow(asr::GVector3(shell_thickness));
+                bbox.grow(asr::GVector3(voxel_size));
             }
 
             return bbox;
@@ -208,289 +240,40 @@ namespace
             result.m_hit = false;
             result.m_distance = std::numeric_limits<double>::max();
 
-            // Flakes are only visible to camera rays.
-            if ((ray.m_flags & asr::VisibilityFlags::CameraRay) == 0)
-                return;
+            switch (m_mode)
+            {
+              case Mode::Flakes:
+                {
+                    FlakesVisitor visitor(
+                        result,
+                        ray.m_tmin,
+                        ray.m_tmax,
+                        m_flake_size,
+                        m_flake_size_jitter,
+                        m_flake_center_jitter,
+                        m_flakes_per_voxel);
+                    m_octree->intersect(ray, visitor);
+                }
+                break;
 
-            Visitor visitor(ray, result);
-            m_octree->intersect(ray, visitor);
+              case Mode::Voxelization:
+                {
+                    VoxelizationVisitor visitor(
+                        result,
+                        ray.m_tmin,
+                        ray.m_tmax);
+                    m_octree->intersect(ray, visitor);
+                }
+                break;
+
+              assert_otherwise;
+            }
 
 #if 0
-
-            result.m_distance = std::numeric_limits<double>::max();
-            result.m_material_slot = 0;
-
-            constexpr double ShellThickness = 0.005;
-
-            constexpr double FlakeSize = 0.005;
-            constexpr double FlakeHalfSize = 0.5 * FlakeSize;
-            constexpr size_t FlakesPerVoxel = 1;
-
-            constexpr double VoxelSize = 0.01;
-            constexpr double RcpVoxelSize = 1.0 / VoxelSize;
-
-            static_assert(FlakeSize < VoxelSize, "Flakes must be smaller than voxels");
-
-            const double outer_radius = m_radius + ShellThickness;
-            const double inner_radius = m_radius;
-
-            //
-            // Intersect the outer sphere.
-            //
-
-            double outer_t[2];
-            size_t outer_hit_count = intersect_sphere(ray, outer_radius, outer_t);
-
-            if (outer_hit_count == 0)
-                return;
-
-            // if (outer_hit_count == 1)
-            //     outer_t[outer_hit_count++] = ray.m_tmax;
-
-            if (outer_hit_count == 1)
-            {
-                outer_t[1] = outer_t[0];
-                outer_t[0] = ray.m_tmin;
-                ++outer_hit_count;
-            }
-
-            assert(outer_hit_count == 2);
-
-            //
-            // Intersect the inner sphere.
-            //
-
-            double inner_t[2];
-            const size_t inner_hit_count = intersect_sphere(ray, inner_radius, inner_t);
-
-            if (inner_hit_count > 0)
-            {
-                if (outer_t[1] > inner_t[0])
-                    outer_t[1] = inner_t[0];
-            }
-
-            const int step_ix = ray.m_dir.x >= 0 ? +1 : -1;
-            const int step_iy = ray.m_dir.y >= 0 ? +1 : -1;
-            const int step_iz = ray.m_dir.z >= 0 ? +1 : -1;
-
-            const asf::Vector3d p_enter = ray.point_at(outer_t[0]);
-            const asf::Vector3d p_exit = ray.point_at(outer_t[1]);
-
-            int ix = static_cast<int>(asf::fast_floor(p_enter.x * RcpVoxelSize));
-            int iy = static_cast<int>(asf::fast_floor(p_enter.y * RcpVoxelSize));
-            int iz = static_cast<int>(asf::fast_floor(p_enter.z * RcpVoxelSize));
-
-            const int exit_ix = static_cast<int>(asf::fast_floor(p_exit.x * RcpVoxelSize));
-            const int exit_iy = static_cast<int>(asf::fast_floor(p_exit.y * RcpVoxelSize));
-            const int exit_iz = static_cast<int>(asf::fast_floor(p_exit.z * RcpVoxelSize));
-
-            //
-            // p(t) = org + t * dir
-            // p(t).x = org.x + t * dir.x
-            //
-            // p(tMaxX).x = | (ix + 1) * VoxelSize                 if step_ix > 0
-            //              | ix * VoxelSize                       if step_ix < 0
-            //
-            // org.x + tMaxX * dir.x = | (ix + 1) * VoxelSize      if step_ix > 0
-            //                         | ix * VoxelSize            if step_ix < 0
-            //
-            // tMaxX = | ((ix + 1) * VoxelSize - org.x) / dir.x    if step_ix > 0
-            //         | (ix * VoxelSize - org.x) / dir.x          if step_ix < 0
-            //
-
-            const int next_ix = step_ix > 0 ? ix + 1 : ix;
-            const int next_iy = step_iy > 0 ? iy + 1 : iy;
-            const int next_iz = step_iz > 0 ? iz + 1 : iz;
-
-            double t_max_x = (next_ix * VoxelSize - ray.m_org.x) / ray.m_dir.x;
-            double t_max_y = (next_iy * VoxelSize - ray.m_org.y) / ray.m_dir.y;
-            double t_max_z = (next_iz * VoxelSize - ray.m_org.z) / ray.m_dir.z;
-
-            //
-            // p(t) = org + t * dir
-            // p(t).x = org.x + t * dir.x
-            // p(0).x = org.x
-            //
-            // p(tDeltaX).x = org.x + step_ix * VoxelSize
-            // org.x + tDeltaX * dir.x = org.x + step_ix * VoxelSize
-            // tDeltaX * dir.x = step_ix * VoxelSize
-            // tDeltaX = step_ix * VoxelSize / dir.x
-            //
-
-            const double t_delta_x = step_ix * VoxelSize / ray.m_dir.x;
-            const double t_delta_y = step_iy * VoxelSize / ray.m_dir.y;
-            const double t_delta_z = step_iz * VoxelSize / ray.m_dir.z;
-
-            /*
-
-            32 seconds
-            2018-11-13T19:51:38.913710Z <003>   243 MB debug   | flakes: cast rays: 1,596,801
-            2018-11-13T19:51:38.913710Z <003>   243 MB debug   | flakes: avg visited voxels/ray: 35.9
-            2018-11-13T19:51:38.913710Z <003>   243 MB debug   | flakes: avg intersected flakes/ray: 3585.3
-
-            27 seconds
-            2018-11-13T19:58:21.386423Z <003>   243 MB debug   | flakes: cast rays: 1,596,801
-            2018-11-13T19:58:21.386423Z <003>   243 MB debug   | flakes: avg visited voxels/ray: 30.0
-            2018-11-13T19:58:21.386423Z <003>   243 MB debug   | flakes: avg intersected flakes/ray: 2995.1
-
-            4.7 seconds
-            2018-11-13T20:08:15.119767Z <003>   244 MB debug   | flakes: cast rays: 1,596,801
-            2018-11-13T20:08:15.119767Z <003>   244 MB debug   | flakes: avg visited voxels/ray: 32.5
-            2018-11-13T20:08:15.119767Z <003>   244 MB debug   | flakes: avg intersected flakes/ray: 390.5
-
-            2.8 seconds
-            2018-11-13T20:11:37.012395Z <003>   244 MB debug   | flakes: cast rays: 1,596,801
-            2018-11-13T20:11:37.012395Z <003>   244 MB debug   | flakes: avg visited voxels/ray: 37.7
-            2018-11-13T20:11:37.012395Z <003>   244 MB debug   | flakes: avg intersected flakes/ray: 75.4
-
-            2.8 seconds
-            2018-11-13T20:16:34.417170Z <004>   245 MB debug   | flakes: cast rays: 1,596,801
-            2018-11-13T20:16:34.417170Z <004>   245 MB debug   | flakes: avg visited voxels/ray: 40.3
-            2018-11-13T20:16:34.417170Z <004>   245 MB debug   | flakes: avg intersected flakes/ray: 40.3
-
-            */
-
-            std::unordered_set<asf::Vector3i, Vector3iHasher> voxels;
-
-            while (true)
-            {
-                // Schedule visit of the nine voxels around (ix, iy, iz).
-                for (int dz = -1; dz <= +1; ++dz)
-                {
-                    for (int dy = -1; dy <= +1; ++dy)
-                    {
-                        for (int dx = -1; dx <= +1; ++dx)
-                        {
-                            // if (voxel_count < MaxVoxels)
-                            //     voxels[voxel_count++] = asf::Vector3i(ix + dx, iy + dy, iz + dz);
-                            voxels.emplace(ix + dx, iy + dy, iz + dz);
-                        }
-                    }
-                }
-
-                // Advance to next voxel.
-                if (t_max_x < t_max_y)
-                {
-                    if (t_max_x < t_max_z)
-                    {
-                        if (ix == exit_ix)
-                            break;
-                        ix += step_ix;
-                        t_max_x += t_delta_x;
-                    }
-                    else
-                    {
-                        if (iz == exit_iz)
-                            break;
-                        iz += step_iz;
-                        t_max_z += t_delta_z;
-                    }
-                }
-                else
-                {
-                    if (t_max_y < t_max_z)
-                    {
-                        if (iy == exit_iy)
-                            break;
-                        iy += step_iy;
-                        t_max_y += t_delta_y;
-                    }
-                    else
-                    {
-                        if (iz == exit_iz)
-                            break;
-                        iz += step_iz;
-                        t_max_z += t_delta_z;
-                    }
-                }
-            }
-
-            for (const asf::Vector3i& voxel : voxels)
-            {
-                const int ix = voxel.x;
-                const int iy = voxel.y;
-                const int iz = voxel.z;
-
-                const asf::AABB3d voxel_bbox(
-                    asf::Vector3d(
-                        ix * VoxelSize,
-                        iy * VoxelSize,
-                        iz * VoxelSize),
-                    asf::Vector3d(
-                        (ix + 1) * VoxelSize,
-                        (iy + 1) * VoxelSize,
-                        (iz + 1) * VoxelSize));
-
-                // Initialize RNG for this voxel.
-                const asf::uint32 voxel_seed =
-                    asf::mix_uint32(
-                        static_cast<asf::uint32>(ix),
-                        static_cast<asf::uint32>(iy),
-                        static_cast<asf::uint32>(iz));
-                asf::Xoroshiro128plus rng(voxel_seed, voxel_seed);
-
-                // Force some mixing.
-                rng.rand_uint32();
-
-                for (size_t flake_index = 0; flake_index < FlakesPerVoxel; ++flake_index)
-                {
-                    asf::Vector3d flake_center;
-#if 1
-                    flake_center.x = asf::rand_double2(rng, voxel_bbox.min.x, voxel_bbox.max.x);
-                    flake_center.y = asf::rand_double2(rng, voxel_bbox.min.y, voxel_bbox.max.y);
-                    flake_center.z = asf::rand_double2(rng, voxel_bbox.min.z, voxel_bbox.max.z);
-#else
-                    flake_center.x = (ix + 0.5) * VoxelSize;
-                    flake_center.y = (iy + 0.5) * VoxelSize;
-                    flake_center.z = (iz + 0.5) * VoxelSize;
-#endif
-
-                    const asf::Vector2d s = asf::rand_vector2<asf::Vector2d>(rng);
-                    const asf::Vector3d flake_normal = asf::sample_sphere_uniform(s);
-                    // const asf::Vector3d flake_normal = asf::Basis3d(asf::normalize(flake_center)).get_tangent_u();
-                    assert(asf::is_normalized(flake_normal));
-
-                    double t_flake;
-                    if (asf::intersect(ray, flake_center, flake_normal, t_flake))
-                    {
-                        if (t_flake >= outer_t[0] &&
-                            t_flake < outer_t[1] &&
-                            t_flake < result.m_distance)
-                        {
-                            const asf::Vector3d flake_hit = ray.point_at(t_flake);
-                            const asf::Vector3d center_to_hit = flake_hit - flake_center;
-
-                            // todo: randomize flake's rotation around its normal.
-                            const asf::Basis3d flake_basis(flake_normal);
-
-                            const double u = asf::dot(center_to_hit, flake_basis.get_tangent_u());
-                            const double v = asf::dot(center_to_hit, flake_basis.get_tangent_v());
-
-                            if (u >= -FlakeHalfSize && u <= FlakeHalfSize &&
-                                v >= -FlakeHalfSize && v <= FlakeHalfSize)
-                            {
-                                result.m_hit = true;
-                                result.m_distance = t_flake;
-                                result.m_geometric_normal = flake_normal;
-                                result.m_shading_normal = flake_normal;
-                                result.m_uv[0] = asf::saturate(static_cast<float>((u + FlakeHalfSize) / FlakeSize));
-                                result.m_uv[1] = asf::saturate(static_cast<float>((v + FlakeHalfSize) / FlakeSize));
-
-                                if (voxel_bbox.contains(flake_hit))
-                                    goto done;
-                            }
-                        }
-                    }
-                }
-            }
-
-        done:
-
             // Update statistics.
             ++m_cast_rays;
             m_visited_voxels += voxels.size();
             m_intersected_flakes += FlakesPerVoxel * voxels.size();
-
 #endif
         }
 
@@ -499,16 +282,22 @@ namespace
         bool intersect(
             const asr::ShadingRay&  ray) const override
         {
-            // todo: implement.
-            return false;
+            // todo: optimize.
+            IntersectionResult result;
+            intersect(ray, result);
+            return result.m_hit;
         }
 
       private:
         class Octree
         {
           public:
-            Octree(const asr::GAABB3& root_aabb, const asr::ObjectInstance& object_instance)
+            Octree(
+                const asr::GAABB3&          root_aabb,
+                const asr::ObjectInstance&  object_instance,
+                const asr::GScalar          voxel_size)
               : m_root_aabb(root_aabb)
+              , m_voxel_size(voxel_size)
             {
                 const asr::MeshObject& object = static_cast<const asr::MeshObject&>(object_instance.get_object());
                 const asf::Transformd& transform = object_instance.get_transform();
@@ -526,6 +315,16 @@ namespace
                     const asr::GVector3 v2 = transform.point_to_parent(object.get_vertex(triangle.m_v2));
                     push_triangle(0, 0, m_root_aabb, v0, v1, v2);
                 }
+            }
+
+            size_t get_node_count() const
+            {
+                return m_nodes.size();
+            }
+
+            size_t count_solid_leaves() const
+            {
+                return count_solid_leaves_recursive(0);
             }
 
             template <typename Visitor>
@@ -625,6 +424,8 @@ namespace
             };
 
             const asr::GAABB3   m_root_aabb;
+            const asr::GScalar  m_voxel_size;
+
             std::vector<Node>   m_nodes;
 
             void push_triangle(
@@ -641,11 +442,7 @@ namespace
                 {
                     m_nodes[node_index].set_solid_bit(true);
 
-                    //const bool must_subdivide =
-                    //    asf::max_value(node_aabb.extent()) > asr::GScalar(0.1);
-                    const bool must_subdivide = node_depth < 6;
-
-                    if (must_subdivide)
+                    if (asf::max_value(node_aabb.extent()) > m_voxel_size)
                     {
                         m_nodes[node_index].make_interior();
                         m_nodes[node_index].set_child_node_index(m_nodes.size());
@@ -693,6 +490,25 @@ namespace
                 }
             }
 
+            size_t count_solid_leaves_recursive(const size_t node_index) const
+            {
+                const Node& node = m_nodes[node_index];
+
+                if (node.is_leaf())
+                    return node.is_solid() ? 1 : 0;
+                else
+                {
+                    size_t count = 0;
+
+                    const size_t child_node_index = node.get_child_node_index();
+
+                    for (size_t i = 0; i < 8; ++i)
+                        count += count_solid_leaves_recursive(child_node_index + i);
+
+                    return count;
+                }
+            }
+
             // Return whether an intersection was found.
             template <typename Visitor>
             bool intersect_recursive(
@@ -729,7 +545,10 @@ namespace
 
                 if (node.is_leaf())
                 {
-                    return node.is_solid() ? visitor.visit(node_aabb, t_enter, t_leave) : false;
+                    return
+                        node.is_solid()
+                            ? visitor.visit(org, dir, node_index, node_aabb, t_enter, t_leave)
+                            : false;
                 }
                 else
                 {
@@ -773,14 +592,14 @@ namespace
                     if (!node.is_solid())
                         return false;
 
-                    const asf::AABB3d leaf_bbox(
+                    const asf::AABB3d node_aabb(
                         asf::Vector3d(x0, y0, z0),
                         asf::Vector3d(x1, y1, z1));
 
                     const double t_enter = asf::max(tx0, ty0, tz0);
                     const double t_leave = asf::min(tx1, ty1, tz1);
 
-                    return visitor.visit(leaf_bbox, t_enter, t_leave);
+                    return visitor.visit(org, dir, node_index, node_aabb, t_enter, t_leave);
                 }
 
                 // Compute the center of the node.
@@ -936,39 +755,174 @@ namespace
                 const size_t            c)
             {
                 if (x < y)
-                {
                     return x < z ? a : c;
-                }
-                else
-                {
-                    return y < z ? b : c;
-                }
+                else return y < z ? b : c;
             }
         };
 
-        class Visitor
+        //
+        // An octree visitor that renders a direct visualization of the octree.
+        //
+
+        class VoxelizationVisitor
         {
           public:
-            Visitor(
-                const asr::ShadingRay&  ray,
-                IntersectionResult&     result)
-              : m_ray(ray)
-              , m_result(result)
+            VoxelizationVisitor(
+                IntersectionResult&     result,
+                const double            ray_tmin,
+                const double            ray_tmax)
+              : m_result(result)
+              , m_ray_tmin(ray_tmin)
+              , m_ray_tmax(ray_tmax)
             {
             }
 
             bool visit(
-                const asf::AABB3d&      leaf_bbox,
+                const asf::Vector3d&    ray_org,
+                const asf::Vector3d&    ray_dir,
+                const size_t            leaf_index,
+                const asf::AABB3d&      leaf_aabb,
                 const double            t_enter,
                 const double            t_leave)
             {
                 if (t_enter < m_result.m_distance)
                 {
+                    const asf::Ray3d ray(ray_org, ray_dir, m_ray_tmin, m_ray_tmax);
+                    const asf::RayInfo3d ray_info(ray);
+
+                    double distance;
+                    asf::Vector3d normal;
+
+                    if (asf::intersect(ray, ray_info, leaf_aabb, distance, normal))
+                    {
+                        m_result.m_hit = true;
+                        m_result.m_distance = distance;
+                        m_result.m_geometric_normal = normal;
+                        m_result.m_shading_normal = normal;
+                        m_result.m_uv = asr::GVector2(0.0, 0.0);
+                        m_result.m_material_slot = 0;
+                    }
+                }
+
+                return m_result.m_hit;
+            }
+
+          private:
+            IntersectionResult&         m_result;
+            const double                m_ray_tmin;
+            const double                m_ray_tmax;
+        };
+
+        //
+        // An octree visitor that renders flakes (randomly oriented quads).
+        //
+
+        class FlakesVisitor
+        {
+          public:
+            FlakesVisitor(
+                IntersectionResult&     result,
+                const double            ray_tmin,
+                const double            ray_tmax,
+                const float             flake_size,
+                const float             flake_size_jitter,
+                const double            flake_center_jitter,
+                const double            flakes_per_voxel)
+              : m_result(result)
+              , m_ray_tmin(ray_tmin)
+              , m_ray_tmax(ray_tmax)
+              , m_flake_size(flake_size)
+              , m_flake_size_jitter(flake_size_jitter)
+              , m_flake_center_jitter(flake_center_jitter)
+              , m_flakes_per_voxel(flakes_per_voxel)
+            {
+            }
+
+            bool visit(
+                const asf::Vector3d&    ray_org,
+                const asf::Vector3d&    ray_dir,
+                const size_t            leaf_index,
+                const asf::AABB3d&      leaf_aabb,
+                const double            t_enter,
+                const double            t_leave)
+            {
+                const asf::Ray3d ray(ray_org, ray_dir);
+                const asf::Vector3d leaf_center = leaf_aabb.center();
+                const asf::Vector3d leaf_extent = leaf_aabb.extent();
+
+                // Initialize RNG for this voxel.
+                const asf::uint32 voxel_seed = asf::hash_uint64_to_uint32(leaf_index);
+                asf::Xoroshiro128plus rng(voxel_seed, voxel_seed);
+
+                // Force some mixing.
+                rng.rand_uint32();
+
+                bool found_hit = false;
+
+                // Instantiate and intersect the flake(s) contained in this voxel.
+                const size_t flake_count = asr::stochastic_cast<asf::Xoroshiro128plus, size_t, double>(rng, m_flakes_per_voxel);
+                for (size_t flake_index = 0; flake_index < flake_count; ++flake_index)
+                {
+                    // IMPORTANT: All random numbers must be drawn unconditionally,
+                    // regardless of whether the flake has been intersected or not.
+
+                    // Compute the center of this flake.
+                    const asf::Vector3d flake_center =
+                        leaf_center +
+                        leaf_extent * m_flake_center_jitter * asf::rand_vector2<asf::Vector3d>(rng);
+
+                    // Compute the normal vector of this flake.
+                    const asf::Vector3d flake_normal =
+                        asf::sample_sphere_uniform(asf::rand_vector2<asf::Vector2d>(rng));
+                    assert(asf::is_normalized(flake_normal));
+
+                    // Compute the size of this flake.
+                    const float flake_size_multiplier = 1.0f - m_flake_size_jitter * asf::rand_float2(rng, -1.0f, +1.0f);
+                    const float flake_size = m_flake_size * flake_size_multiplier;
+                    const float half_flake_size = 0.5f * flake_size;
+                    const float rcp_flake_size = 1.0f / flake_size;
+                    assert(flake_size > 0.0f);
+
+                    // Randomly orient the flake around its normal.
+                    const double flake_angle = asf::rand_double2(rng, 0.0, asf::TwoPi<double>());
+
+                    // Reject this flake if the ray doesn't intersect its support plane.
+                    double t_flake;
+                    if (!asf::intersect(ray, flake_center, flake_normal, t_flake))
+                        continue;
+
+                    // Reject this flake if it's beyond the closest intersection found so far.
+                    if (t_flake >= m_result.m_distance)
+                        continue;
+
+                    // Reject this flake if its intersection with the ray is outside the voxel.
+                    const asf::Vector3d flake_hit = ray.point_at(t_flake);
+                    if (!leaf_aabb.contains(flake_hit))
+                        continue;
+
+                    // Build a randomly oriented tangent frame around the flake's normal vector.
+                    const asf::Basis3d flake_basis(flake_normal);
+                    const asf::Quaterniond q = asf::Quaterniond::make_rotation(flake_normal, flake_angle);
+                    const asf::Vector3d flake_tangent_u = asf::rotate(q, flake_basis.get_tangent_u());
+                    const asf::Vector3d flake_tangent_v = asf::cross(flake_tangent_u, flake_normal);//asf::rotate(q, flake_basis.get_tangent_v());
+
+                    // Compute UV coordinates of the hit point on the flake.
+                    const asf::Vector3d center_to_hit = flake_hit - flake_center;
+                    const float u = static_cast<float>(asf::dot(center_to_hit, flake_tangent_u));
+                    const float v = static_cast<float>(asf::dot(center_to_hit, flake_tangent_v));
+
+                    // Reject this flake if the hit point is outside its bounds.
+                    if (u < -half_flake_size || u > half_flake_size &&
+                        v < -half_flake_size || v > half_flake_size)
+                        continue;
+
+                    // An intersection with this flake has been found.
                     m_result.m_hit = true;
-                    m_result.m_distance = t_enter;
-                    m_result.m_geometric_normal = -m_ray.m_dir;
-                    m_result.m_shading_normal = -m_ray.m_dir;
-                    m_result.m_uv = asr::GVector2(0.0, 0.0);
+                    m_result.m_distance = t_flake;
+                    m_result.m_geometric_normal = flake_normal;
+                    m_result.m_shading_normal = flake_normal;
+                    m_result.m_uv[0] = asf::saturate((u + half_flake_size) * rcp_flake_size);
+                    m_result.m_uv[1] = asf::saturate((v + half_flake_size) * rcp_flake_size);
                     m_result.m_material_slot = 0;
                 }
 
@@ -976,19 +930,23 @@ namespace
             }
 
           private:
-            struct Vector3iHasher
-            {
-                size_t operator()(const asf::Vector3i& v) const
-                {
-                    return asf::mix_uint32(v[0], v[1], v[2]);
-                }
-            };
-
-            const asr::ShadingRay&      m_ray;
             IntersectionResult&         m_result;
+            const double                m_ray_tmin;
+            const double                m_ray_tmax;
+            const float                 m_flake_size;
+            const float                 m_flake_size_jitter;
+            const double                m_flake_center_jitter;
+            const double                m_flakes_per_voxel;
         };
 
-        asr::GScalar                    m_shell_thickness;
+        enum class Mode { Flakes, Voxelization };
+
+        Mode                            m_mode;
+        asr::GScalar                    m_voxel_size;
+        float                           m_flake_size;
+        float                           m_flake_size_jitter;
+        double                          m_flake_center_jitter;
+        double                          m_flakes_per_voxel;
 
         std::unique_ptr<Octree>         m_octree;
 
@@ -1001,93 +959,9 @@ namespace
             return static_cast<const asr::ObjectInstance*>(m_inputs.get_entity("base_object_instance"));
         }
 
-        asr::GScalar get_uncached_shell_thickness() const
+        asr::GScalar get_uncached_voxel_size() const
         {
-            return m_params.get_required<asr::GScalar>("shell_thickness", asr::GScalar(0.1));
-        }
-    };
-
-
-    //
-    // Factory for the new object model.
-    //
-
-    class FlakesObjectFactory
-      : public asr::IObjectFactory
-    {
-      public:
-        // Delete this instance.
-        void release() override
-        {
-            delete this;
-        }
-
-        // Return a string identifying this object model.
-        const char* get_model() const override
-        {
-            return Model;
-        }
-
-        // Return metadata for this object model.
-        asf::Dictionary get_model_metadata() const override
-        {
-            return
-                asf::Dictionary()
-                    .insert("name", Model)
-                    .insert("label", "Flakes Object");
-        }
-
-        // Return metadata for the inputs of this object model.
-        asf::DictionaryArray get_input_metadata() const override
-        {
-            asf::DictionaryArray metadata;
-
-            metadata.push_back(
-                asf::Dictionary()
-                    .insert("name", "base_object_instance")
-                    .insert("label", "Base Object Instance")
-                    .insert("type", "entity")
-                    .insert("entity_types",
-                        asf::Dictionary().insert("object_insgtance", "Object Instances"))
-                    .insert("use", "required"));
-
-            metadata.push_back(
-                asf::Dictionary()
-                    .insert("name", "shell_thickness")
-                    .insert("label", "Shell Thickness")
-                    .insert("type", "numeric")
-                    .insert("min",
-                        asf::Dictionary()
-                            .insert("value", "0.0")
-                            .insert("type", "hard"))
-                    .insert("max",
-                        asf::Dictionary()
-                            .insert("value", "1.0")
-                            .insert("type", "soft"))
-                    .insert("use", "required")
-                    .insert("default", "0.1"));
-
-            return metadata;
-        }
-
-        // Create a new single empty object.
-        asf::auto_release_ptr<asr::Object> create(
-            const char*                 name,
-            const asr::ParamArray&      params) const override
-        {
-            return asf::auto_release_ptr<asr::Object>(new FlakesObject(name, params));
-        }
-
-        // Create objects, potentially from external assets.
-        bool create(
-            const char*                 name,
-            const asr::ParamArray&      params,
-            const asf::SearchPaths&     search_paths,
-            const bool                  omit_loading_assets,
-            asr::ObjectArray&           objects) const override
-        {
-            objects.push_back(create(name, params).release());
-            return true;
+            return m_params.get_required<asr::GScalar>("voxel_size", asr::GScalar(0.1));
         }
     };
 
@@ -1149,6 +1023,175 @@ namespace
         assert(is_interior());
         return static_cast<size_t>((m_info & 0x7FFFFFFFUL));
     }
+
+
+    //
+    // Factory for the new object model.
+    //
+
+    class FlakesObjectFactory
+      : public asr::IObjectFactory
+    {
+      public:
+        // Delete this instance.
+        void release() override
+        {
+            delete this;
+        }
+
+        // Return a string identifying this object model.
+        const char* get_model() const override
+        {
+            return Model;
+        }
+
+        // Return metadata for this object model.
+        asf::Dictionary get_model_metadata() const override
+        {
+            return
+                asf::Dictionary()
+                    .insert("name", Model)
+                    .insert("label", "Flakes Object");
+        }
+
+        // Return metadata for the inputs of this object model.
+        asf::DictionaryArray get_input_metadata() const override
+        {
+            asf::DictionaryArray metadata;
+
+            metadata.push_back(
+                asf::Dictionary()
+                    .insert("name", "base_object_instance")
+                    .insert("label", "Base Object Instance")
+                    .insert("type", "entity")
+                    .insert("entity_types",
+                        asf::Dictionary().insert("object_insgtance", "Object Instances"))
+                    .insert("use", "required"));
+
+            metadata.push_back(
+                asf::Dictionary()
+                    .insert("name", "mode")
+                    .insert("label", "Mode")
+                    .insert("type", "enumeration")
+                    .insert("items", asf::Dictionary()
+                        .insert("Flakes", "flakes")
+                        .insert("Voxelization", "voxelization"))
+                    .insert("use", "required")
+                    .insert("default", "flakes")
+                    .insert("on_change", "rebuild_form"));
+
+            metadata.push_back(
+                asf::Dictionary()
+                    .insert("name", "voxel_size")
+                    .insert("label", "Voxel Size")
+                    .insert("type", "numeric")
+                    .insert("min",
+                        asf::Dictionary()
+                            .insert("value", "0.0")
+                            .insert("type", "hard"))
+                    .insert("max",
+                        asf::Dictionary()
+                            .insert("value", "1.0")
+                            .insert("type", "soft"))
+                    .insert("use", "required")
+                    .insert("default", "0.1"));
+
+            metadata.push_back(
+                asf::Dictionary()
+                    .insert("name", "flake_size")
+                    .insert("label", "Flake Size")
+                    .insert("type", "numeric")
+                    .insert("min",
+                        asf::Dictionary()
+                            .insert("value", "0.0")
+                            .insert("type", "hard"))
+                    .insert("max",
+                        asf::Dictionary()
+                            .insert("value", "1.0")
+                            .insert("type", "soft"))
+                    .insert("use", "required")
+                    .insert("default", "0.05")
+                    .insert("visible_if",
+                        asf::Dictionary()
+                            .insert("mode", "flakes")));
+
+            metadata.push_back(
+                asf::Dictionary()
+                    .insert("name", "flake_size_jitter")
+                    .insert("label", "Flake Size Jitter")
+                    .insert("type", "numeric")
+                    .insert("min",
+                        asf::Dictionary()
+                            .insert("value", "0.0")
+                            .insert("type", "hard"))
+                    .insert("max",
+                        asf::Dictionary()
+                            .insert("value", "1.0")
+                            .insert("type", "hard"))
+                    .insert("use", "required")
+                    .insert("default", "0.2")
+                    .insert("visible_if",
+                        asf::Dictionary()
+                            .insert("mode", "flakes")));
+
+            metadata.push_back(
+                asf::Dictionary()
+                    .insert("name", "flake_center_jitter")
+                    .insert("label", "Flake Center Jitter")
+                    .insert("type", "numeric")
+                    .insert("min",
+                        asf::Dictionary()
+                            .insert("value", "0.0")
+                            .insert("type", "hard"))
+                    .insert("max",
+                        asf::Dictionary()
+                            .insert("value", "1.0")
+                            .insert("type", "hard"))
+                    .insert("use", "required")
+                    .insert("default", "0.8")
+                    .insert("visible_if",
+                        asf::Dictionary()
+                            .insert("mode", "flakes")));
+
+            metadata.push_back(
+                asf::Dictionary()
+                    .insert("name", "flakes_per_voxel")
+                    .insert("label", "Flakes per Voxel")
+                    .insert("type", "numeric")
+                    .insert("min",
+                        asf::Dictionary()
+                            .insert("value", "0.0")
+                            .insert("type", "hard"))
+                    .insert("max",
+                        asf::Dictionary()
+                            .insert("value", "10.0")
+                            .insert("type", "soft"))
+                    .insert("use", "required")
+                    .insert("default", "1.0"));
+
+            return metadata;
+        }
+
+        // Create a new single empty object.
+        asf::auto_release_ptr<asr::Object> create(
+            const char*                 name,
+            const asr::ParamArray&      params) const override
+        {
+            return asf::auto_release_ptr<asr::Object>(new FlakesObject(name, params));
+        }
+
+        // Create objects, potentially from external assets.
+        bool create(
+            const char*                 name,
+            const asr::ParamArray&      params,
+            const asf::SearchPaths&     search_paths,
+            const bool                  omit_loading_assets,
+            asr::ObjectArray&           objects) const override
+        {
+            objects.push_back(create(name, params).release());
+            return true;
+        }
+    };
 }
 
 

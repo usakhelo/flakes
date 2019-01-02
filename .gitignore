@@ -1,1 +1,4 @@
 build/
+debug/
+renders/
+test scenes/
