@@ -847,8 +847,12 @@ namespace
                 const double            t_leave)
             {
                 const asf::Ray3d ray(ray_org, ray_dir);
+
                 const asf::Vector3d leaf_center = leaf_aabb.center();
                 const asf::Vector3d leaf_extent = leaf_aabb.extent();
+
+                const asf::Vector3d flake_center_base = leaf_center - (0.5 * m_flake_center_jitter) * leaf_extent;
+                const asf::Vector3d flake_center_delta = leaf_extent * m_flake_center_jitter;
 
                 // Initialize RNG for this voxel.
                 const asf::uint32 voxel_seed = asf::hash_uint64_to_uint32(leaf_index);
@@ -868,8 +872,7 @@ namespace
 
                     // Compute the center of this flake.
                     const asf::Vector3d flake_center =
-                        leaf_center +
-                        leaf_extent * m_flake_center_jitter * asf::rand_vector2<asf::Vector3d>(rng);
+                        flake_center_base + flake_center_delta * asf::rand_vector2<asf::Vector3d>(rng);
 
                     // Compute the normal vector of this flake.
                     const asf::Vector3d flake_normal =
@@ -912,7 +915,7 @@ namespace
                     const float v = static_cast<float>(asf::dot(center_to_hit, flake_tangent_v));
 
                     // Reject this flake if the hit point is outside its bounds.
-                    if (u < -half_flake_size || u > half_flake_size &&
+                    if (u < -half_flake_size || u > half_flake_size ||
                         v < -half_flake_size || v > half_flake_size)
                         continue;
 

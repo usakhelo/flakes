@@ -145,10 +145,22 @@ endif ()
 
 
 #--------------------------------------------------------------------------------------------------
+# Source files.
+#--------------------------------------------------------------------------------------------------
+
+set (sources
+    flakesobject.cpp
+)
+source_group ("" FILES
+    ${sources}
+)
+
+
+#--------------------------------------------------------------------------------------------------
 # Product.
 #--------------------------------------------------------------------------------------------------
 
-add_library (flakesobject SHARED flakesobject.cpp)
+add_library (flakesobject SHARED ${sources})
 set_target_properties (flakesobject PROPERTIES PREFIX "")
 
 target_link_libraries (flakesobject
