@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{D8701478-CF31-4D55-8A1B-CC131689C55B}</ProjectGuid>
+    <RootNamespace>flakesmaxobject</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\..\appleseed-max\src\appleseed-max-debug.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\..\appleseed-max\src\appleseed-max-release.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <TargetExt>.dlo</TargetExt>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <TargetExt>.dlo</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\..\appleseed-max\src;$(SolutionDir)..\..\appleseed-max\src\appleseed-max-impl;$(SolutionDir)..\..\windows-deps\stage\vc140\ilmbase-debug\include;$(SolutionDir)..\..\windows-deps\stage\vc140\openexr-debug\include;$(SolutionDir)..\..\windows-deps\stage\vc140\oiio-debug\include;$(SolutionDir)..\..\windows-deps\stage\vc140\osl-debug\include;$(SolutionDir)..\..\windows-deps\stage\vc140\SeExpr-debug\include;$(SolutionDir)..\..\boost_1_69_0;C:\Program Files\Autodesk\3ds Max 2017 SDK\maxsdk\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>C:\Program Files\Autodesk\3ds Max 2017 SDK\maxsdk\lib\x64\Release;$(SolutionDir)..\..\appleseed-max\build\appleseed-max2017-common\x64\$(ConfigurationName);$(SolutionDir)..\..\appleseed\sandbox\lib\vc140\$(ConfigurationName);$(SolutionDir)..\..\windows-deps\stage\vc140;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>appleseed-max2017-common.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>mkdir "$(SolutionDir)..\sandbox\max2017\$(Configuration)" 2&gt;nul
+mkdir "$(SolutionDir)..\sandbox\max2017\Current" 2&gt;nul
+
+copy /Y "$(TargetPath)" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+copy /Y "$(TargetPath)" "$(SolutionDir)..\sandbox\max2017\Current\"
+
+if not "$(Configuration)" == "Ship" copy /Y "$(TargetDir)\$(TargetName).pdb" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+if not "$(Configuration)" == "Ship" copy /Y "$(TargetDir)\$(TargetName).pdb" "$(SolutionDir)..\sandbox\max2017\Current\"
+
+copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\Current\"
+
+if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\Current\"
+</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\..\appleseed-max\src;$(SolutionDir)..\..\appleseed-max\src\appleseed-max-impl;$(SolutionDir)..\..\windows-deps\stage\vc140\ilmbase-release\include;$(SolutionDir)..\..\windows-deps\stage\vc140\openexr-release\include;$(SolutionDir)..\..\windows-deps\stage\vc140\oiio-release\include;$(SolutionDir)..\..\windows-deps\stage\vc140\osl-release\include;$(SolutionDir)..\..\windows-deps\stage\vc140\SeExpr-release\include;$(SolutionDir)..\..\boost_1_69_0;C:\Program Files\Autodesk\3ds Max 2017 SDK\maxsdk\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalLibraryDirectories>C:\Program Files\Autodesk\3ds Max 2017 SDK\maxsdk\lib\x64\Release;$(SolutionDir)..\..\appleseed-max\build\appleseed-max2017-common\x64\$(ConfigurationName);$(SolutionDir)..\..\appleseed\sandbox\lib\vc140\$(ConfigurationName);$(SolutionDir)..\..\windows-deps\stage\vc140;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>appleseed-max2017-common.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>mkdir "$(SolutionDir)..\sandbox\max2017\$(Configuration)" 2&gt;nul
+mkdir "$(SolutionDir)..\sandbox\max2017\Current" 2&gt;nul
+
+copy /Y "$(TargetPath)" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+copy /Y "$(TargetPath)" "$(SolutionDir)..\sandbox\max2017\Current\"
+
+if not "$(Configuration)" == "Ship" copy /Y "$(TargetDir)\$(TargetName).pdb" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+if not "$(Configuration)" == "Ship" copy /Y "$(TargetDir)\$(TargetName).pdb" "$(SolutionDir)..\sandbox\max2017\Current\"
+
+copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\Current\"
+
+if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\Current\"
+</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="flakesmaxobject.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="plugin.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="datachunks.h" />
+    <ClInclude Include="flakesmaxobject.h" />
+    <ClInclude Include="main.h" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="flakesmaxobject.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

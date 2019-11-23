@@ -162,11 +162,11 @@ namespace
             m_flake_center_jitter = m_params.get_required<double>("flake_center_jitter", 0.8);
             m_flakes_per_voxel = m_params.get_required<double>("flakes_per_voxel", 1.0);
             RENDERER_LOG_DEBUG("flakes: parameters:");
-            RENDERER_LOG_DEBUG("  voxel size:           %f", m_voxel_size);
-            RENDERER_LOG_DEBUG("  flake size:           %f", m_flake_size);
-            RENDERER_LOG_DEBUG("  flake size jitter:    %f", m_flake_size_jitter);
-            RENDERER_LOG_DEBUG("  flake center jitter:  %f", m_flake_center_jitter);
-            RENDERER_LOG_DEBUG("  flakes per voxel:     %f", m_flakes_per_voxel);
+            RENDERER_LOG_DEBUG("  voxel size                    %f", m_voxel_size);
+            RENDERER_LOG_DEBUG("  flake size                    %f", m_flake_size);
+            RENDERER_LOG_DEBUG("  flake size jitter             %f", m_flake_size_jitter);
+            RENDERER_LOG_DEBUG("  flake center jitter           %f", m_flake_center_jitter);
+            RENDERER_LOG_DEBUG("  flakes per voxel              %f", m_flakes_per_voxel);
 
             // Build octree.
             const asr::GAABB3 octree_root_aabb = compute_local_bbox();
@@ -181,9 +181,9 @@ namespace
             const asf::uint64 solid_leaf_count = static_cast<asf::uint64>(m_octree->count_solid_leaves());
             const asf::uint64 total_flake_count = static_cast<asf::uint64>(solid_leaf_count * m_flakes_per_voxel);
             RENDERER_LOG_DEBUG("flakes: statistics:");
-            RENDERER_LOG_DEBUG("  node count:           %s", asf::pretty_uint(node_count).c_str());
-            RENDERER_LOG_DEBUG("  solid leaf count:     %s", asf::pretty_uint(solid_leaf_count).c_str());
-            RENDERER_LOG_DEBUG("  total flake count:    %s", asf::pretty_uint(total_flake_count).c_str());
+            RENDERER_LOG_DEBUG("  node count                    %s", asf::pretty_uint(node_count).c_str());
+            RENDERER_LOG_DEBUG("  solid leaf count              %s", asf::pretty_uint(solid_leaf_count).c_str());
+            RENDERER_LOG_DEBUG("  total flake count             %s", asf::pretty_uint(total_flake_count).c_str());
 
             // Initialize intersection statistics.
             m_cast_rays = 0;
@@ -286,6 +286,20 @@ namespace
             IntersectionResult result;
             intersect(ray, result);
             return result.m_hit;
+        }
+
+        // Compute a front point, a back point and the geometric normal in object
+        // instance space for a given ray with origin being a point on the surface
+        // of the object.
+        void refine_and_offset(
+            const asf::Ray3d&               obj_inst_ray,
+            asf::Vector3d&                  obj_inst_front_point,
+            asf::Vector3d&                  obj_inst_back_point,
+            asf::Vector3d&                  obj_inst_geo_normal) const override
+        {
+            obj_inst_front_point = obj_inst_ray.m_org;
+            obj_inst_back_point = obj_inst_ray.m_org;
+            obj_inst_geo_normal = - obj_inst_ray.m_dir; // todo: entirely arbitrary
         }
 
       private:
