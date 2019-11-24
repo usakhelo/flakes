@@ -86,15 +86,16 @@ namespace
     enum { ParamBlockIdFlakesMaxObject };
     enum { ParamBlockRefFlakesMaxObject };
 
-    enum ParamMapId
-    {
-        ParamMapIdVisibility
-    };
-
     enum ParamId
     {
         // Changing these value WILL break compatibility.
-        ParamIdSSSSet = 0,
+        ParamIdBaseObject           = 0,
+        ParamIdMode                 = 1,
+        ParamIdVoxelSize            = 2,
+        ParamIdFlakeSize            = 3,
+        ParamIdFlakeSizeJitter      = 4,
+        ParamIdFlakeCenterJitter    = 5,
+        ParamIdFlakesPerVoxel       = 6
     };
 
     ParamBlockDesc2 g_block_desc(
@@ -103,16 +104,12 @@ namespace
         L"flakesMaxObjectParams",                   // internal parameter block's name
         0,                                          // ID of the localized name string
         &g_flakesmaxobject_classdesc,               // class descriptor
-        P_AUTO_CONSTRUCT + P_MULTIMAP + P_AUTO_UI,  // block flags
+        P_AUTO_CONSTRUCT + P_AUTO_UI,               // block flags
 
         // --- P_AUTO_CONSTRUCT arguments ---
         ParamBlockRefFlakesMaxObject,               // parameter block's reference number
 
-        // --- P_MULTIMAP arguments ---
-        1,                                          // number of rollups
-
-        // --- P_AUTO_UI arguments for Visibility rollup ---
-        ParamMapIdVisibility,
+        // --- P_AUTO_UI arguments ---
         IDD_FORMVIEW_PARAMS,                        // ID of the dialog template
         IDS_FORMVIEW_PARAMS_TITLE,                  // ID of the dialog's title string
         0,                                          // IParamMap2 creation/deletion flag mask
@@ -121,8 +118,47 @@ namespace
 
         // --- Parameters specifications ---
 
-        ParamIdSSSSet, L"sss_set", TYPE_STRING, 0, IDS_SSS_SET,
-            p_ui, ParamMapIdVisibility, TYPE_EDITBOX, IDC_SSS_SET,
+        ParamIdBaseObject, L"base_object", TYPE_STRING, 0, IDS_BASE_OBJECT,
+            p_ui, TYPE_EDITBOX, IDC_TEXTEDIT_BASE_OBJECT,
+        p_end,
+
+        ParamIdMode, L"mode", TYPE_INT, 0, IDS_MODE,
+            p_ui, TYPE_INT_COMBOBOX,
+                IDC_COMBO_MODE,
+                2,
+                IDS_MODE_FLAKES, IDS_MODE_VOXELIZATION,
+            p_vals, 0, 1,
+            p_default, 0,
+        p_end,
+
+        ParamIdVoxelSize, L"voxel_size", TYPE_FLOAT, 0, IDS_VOXEL_SIZE,
+            p_default, 0.1f,
+            p_range, 0.0f, 1.0f,
+            p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_VOXEL_SIZE, IDC_SPINNER_VOXEL_SIZE, SPIN_AUTOSCALE,
+        p_end,
+
+        ParamIdFlakeSize, L"flake_size", TYPE_FLOAT, 0, IDS_FLAKE_SIZE,
+            p_default, 0.05f,
+            p_range, 0.0f, 1.0f,
+            p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_FLAKE_SIZE, IDC_SPINNER_FLAKE_SIZE, SPIN_AUTOSCALE,
+        p_end,
+
+        ParamIdFlakeSizeJitter, L"flake_size_jitter", TYPE_FLOAT, 0, IDS_FLAKE_SIZE_JITTER,
+            p_default, 0.2f,
+            p_range, 0.0f, 1.0f,
+            p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_FLAKE_SIZE_JITTER, IDC_SPINNER_FLAKE_SIZE_JITTER, SPIN_AUTOSCALE,
+        p_end,
+
+        ParamIdFlakeCenterJitter, L"flake_center_jitter", TYPE_FLOAT, 0, IDS_FLAKE_CENTER_JITTER,
+            p_default, 0.8f,
+            p_range, 0.0f, 1.0f,
+            p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_FLAKE_CENTER_JITTER, IDC_SPINNER_FLAKE_CENTER_JITTER, SPIN_AUTOSCALE,
+        p_end,
+
+        ParamIdFlakesPerVoxel, L"flakes_per_voxel", TYPE_FLOAT, 0, IDS_FLAKES_PER_VOXEL,
+            p_default, 1.0f,
+            p_range, 0.0f, 10.0f,
+            p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_FLAKES_PER_VOXEL, IDC_SPINNER_FLAKES_PER_VOXEL, SPIN_AUTOSCALE,
         p_end,
 
         // --- The end ---
@@ -621,18 +657,35 @@ asf::auto_release_ptr<asr::Object> FlakesMaxObject::create_object(
     if (!contains_path(project.search_paths(), plugin_base_path))
         project.search_paths().push_back_explicit_path(plugin_base_path.string());
 
-    const MCHAR* str_value;
-    m_pblock->GetValue(ParamIdSSSSet, time, str_value, FOREVER);
-    const std::string base_object_instance = str_value != nullptr ? wide_to_utf8(str_value) : std::string();
-
     asr::ParamArray params;
-    params.insert("base_object_instance", base_object_instance);
-    params.insert("mode", "voxelization");
-    params.insert("voxel_size", 1.0);
-    params.insert("flake_size", 0.05);
-    params.insert("flake_size_jitter", 0.2);
-    params.insert("flake_center_jitter", 0.8);
-    params.insert("flakes_per_voxel", 1.0);
+
+    const MCHAR* base_object_instance_name;
+    m_pblock->GetValue(ParamIdBaseObject, time, base_object_instance_name, FOREVER);
+    params.insert("base_object_instance", base_object_instance_name != nullptr ? wide_to_utf8(base_object_instance_name) : std::string());
+
+    int mode;
+    m_pblock->GetValue(ParamIdMode, time, mode, FOREVER);
+    params.insert("mode", mode == 0 ? "flakes" : "voxelization");
+
+    float voxel_size;
+    m_pblock->GetValue(ParamIdMode, time, voxel_size, FOREVER);
+    params.insert("voxel_size", voxel_size);
+
+    float flake_size;
+    m_pblock->GetValue(ParamIdMode, time, flake_size, FOREVER);
+    params.insert("flake_size", flake_size);
+
+    float flake_size_jitter;
+    m_pblock->GetValue(ParamIdMode, time, flake_size_jitter, FOREVER);
+    params.insert("flake_size_jitter", flake_size_jitter);
+
+    float flake_center_jitter;
+    m_pblock->GetValue(ParamIdMode, time, flake_center_jitter, FOREVER);
+    params.insert("flake_center_jitter", flake_center_jitter);
+
+    float flakes_per_voxel;
+    m_pblock->GetValue(ParamIdMode, time, flakes_per_voxel, FOREVER);
+    params.insert("flakes_per_voxel", flakes_per_voxel);
 
     return object_factory->create(name, params);
 }

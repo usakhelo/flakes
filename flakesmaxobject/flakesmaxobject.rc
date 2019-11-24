@@ -50,12 +50,35 @@ END
 // Dialog
 //
 
-IDD_FORMVIEW_PARAMS DIALOGEX 0, 0, 108, 166
+IDD_FORMVIEW_PARAMS DIALOGEX 0, 0, 108, 106
 STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif", 0, 0, 0x1
 BEGIN
-    CONTROL         "SSS Set",IDC_SSS_SET,"CustEdit",WS_TABSTOP,43,153,54,10
-    LTEXT           "SSS Set Id:",IDC_SSS_SET_LABEL,5,154,38,8
+    LTEXT           "Base Object:",IDC_LABEL_BASE_OBJECT,7,6,59,8
+    CONTROL         "Base Object TextEdit",IDC_TEXTEDIT_BASE_OBJECT,"CustEdit",WS_TABSTOP,66,6,42,10
+    LTEXT           "Mode:",IDC_LABEL_MODE,7,20,59,8
+    COMBOBOX        IDC_COMBO_MODE,66,20,42,10,CBS_DROPDOWNLIST | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Voxel Size:",IDC_LABEL_VOXEL_SIZE,7,34,59,8
+    CONTROL         "Voxel Size",IDC_EDIT_VOXEL_SIZE,"CustEdit",WS_TABSTOP,66,34,33,10
+    CONTROL         "Voxel Size Spinner",IDC_SPINNER_VOXEL_SIZE,
+                    "SpinnerControl",WS_TABSTOP,100,34,6,10
+    LTEXT           "Flake Size:",IDC_LABEL_FLAKE_SIZE,7,48,59,8
+    CONTROL         "Flake Size",IDC_EDIT_FLAKE_SIZE,"CustEdit",WS_TABSTOP,66,48,33,10
+    CONTROL         "Flake Size Spinner",IDC_SPINNER_FLAKE_SIZE,
+                    "SpinnerControl",WS_TABSTOP,100,48,6,10
+    LTEXT           "Flake Size Jitter:",IDC_LABEL_FLAKE_SIZE_JITTER,7,62,59,8
+    CONTROL         "Flake Size Jitter",IDC_EDIT_FLAKE_SIZE_JITTER,"CustEdit",WS_TABSTOP,66,62,33,10
+    CONTROL         "Flake Size Jitter Spinner",IDC_SPINNER_FLAKE_SIZE_JITTER,
+                    "SpinnerControl",WS_TABSTOP,100,62,6,10
+    LTEXT           "Flake Center Jitter:",IDC_LABEL_FLAKE_CENTER_JITTER,7,76,59,8
+    CONTROL         "Flake Center Jitter",IDC_EDIT_FLAKE_CENTER_JITTER,
+                    "CustEdit",WS_TABSTOP,66,76,33,10
+    CONTROL         "Flake Center Jitter Spinner",IDC_SPINNER_FLAKE_CENTER_JITTER,
+                    "SpinnerControl",WS_TABSTOP,100,76,6,10
+    LTEXT           "Flakes per Voxel:",IDC_LABEL_FLAKES_PER_VOXEL,7,90,59,8
+    CONTROL         "Flakes per Voxel",IDC_EDIT_FLAKES_PER_VOXEL,"CustEdit",WS_TABSTOP,66,90,33,10
+    CONTROL         "Flakes per Voxel Spinner",IDC_SPINNER_FLAKES_PER_VOXEL,
+                    "SpinnerControl",WS_TABSTOP,100,90,6,10
 END
 
 
@@ -69,7 +92,9 @@ GUIDELINES DESIGNINFO
 BEGIN
     IDD_FORMVIEW_PARAMS, DIALOG
     BEGIN
-        BOTTOMMARGIN, 159
+        VERTGUIDE, 5
+        VERTGUIDE, 66
+        BOTTOMMARGIN, 104
     END
 END
 #endif    // APSTUDIO_INVOKED
@@ -98,7 +123,31 @@ END
 
 STRINGTABLE
 BEGIN
-    IDS_SSS_SET             "SSSSet"
+    IDS_BASE_OBJECT         "Base Object"
+    IDS_MODE                "Mode"
+    IDS_MODE_FLAKES         "Flakes"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_MODE_VOXELIZATION   "Voxelization"
+    IDS_VOXEL_SIZE          "Voxel Size"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_FLAKE_SIZE          "Flake Size"
+    IDS_FLAKE_SIZE_JITTER   "Flake Size Jitter"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_FLAKE_CENTER_JITTER "Flake Center Jitter"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_FLAKES_PER_VOXEL    "Flakes per Voxel"
 END
 
 #endif    // English (United States) resources
