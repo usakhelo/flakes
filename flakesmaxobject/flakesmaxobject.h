@@ -83,6 +83,8 @@ class FlakesMaxObject
     int NumRefs() override;
     RefTargetHandle GetReference(int i) override;
     void SetReference(int i, RefTargetHandle rtarg) override;
+    IOResult Save(ISave* isave) override;
+    IOResult Load(ILoad* iload) override;
     RefResult NotifyRefChanged(
         const Interval&     changeInt,
         RefTargetHandle     hTarget,
@@ -97,10 +99,6 @@ class FlakesMaxObject
     BaseInterface* GetInterface(Interface_ID id) override;
     CreateMouseCallBack* GetCreateMouseCallBack() override;
     const MCHAR* GetObjectName() override;
-
-    // todo: whose methods are these?
-    IOResult Save(ISave* isave) override;
-    IOResult Load(ILoad* iload) override;
 
     // SimpleObject2 methods.
     void BuildMesh(TimeValue t) override;

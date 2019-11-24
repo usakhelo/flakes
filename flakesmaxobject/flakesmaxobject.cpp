@@ -264,42 +264,6 @@ void FlakesMaxObject::SetReference(int i, RefTargetHandle rtarg)
     }
 }
 
-RefResult FlakesMaxObject::NotifyRefChanged(
-    const Interval&     changeInt,
-    RefTargetHandle     hTarget,
-    PartID&             partID,
-    RefMessage          message,
-    BOOL                propagate)
-{
-    return REF_SUCCEED;
-}
-
-RefTargetHandle FlakesMaxObject::Clone(RemapDir& remap)
-{
-    FlakesMaxObject* clone = new FlakesMaxObject();
-    clone->ReplaceReference(ParamBlockRefFlakesMaxObject, remap.CloneRef(m_pblock));
-    BaseClone(this, clone, remap);
-    return clone;
-}
-
-BaseInterface* FlakesMaxObject::GetInterface(Interface_ID id)
-{
-    return
-        id == IAppleseedGeometricObject::interface_id()
-            ? static_cast<IAppleseedGeometricObject*>(this)
-            : SimpleObject2::GetInterface(id);
-}
-
-CreateMouseCallBack* FlakesMaxObject::GetCreateMouseCallBack()
-{
-    return nullptr;
-} 
-
-const MCHAR* FlakesMaxObject::GetObjectName()
-{
-    return FlakesMaxObjectFriendlyClassName;
-}
-
 IOResult FlakesMaxObject::Save(ISave* isave)
 {
     bool success = true;
@@ -350,6 +314,42 @@ IOResult FlakesMaxObject::Load(ILoad* iload)
     }
 
     return result;
+}
+
+RefResult FlakesMaxObject::NotifyRefChanged(
+    const Interval&     changeInt,
+    RefTargetHandle     hTarget,
+    PartID&             partID,
+    RefMessage          message,
+    BOOL                propagate)
+{
+    return REF_SUCCEED;
+}
+
+RefTargetHandle FlakesMaxObject::Clone(RemapDir& remap)
+{
+    FlakesMaxObject* clone = new FlakesMaxObject();
+    clone->ReplaceReference(ParamBlockRefFlakesMaxObject, remap.CloneRef(m_pblock));
+    BaseClone(this, clone, remap);
+    return clone;
+}
+
+BaseInterface* FlakesMaxObject::GetInterface(Interface_ID id)
+{
+    return
+        id == IAppleseedGeometricObject::interface_id()
+            ? static_cast<IAppleseedGeometricObject*>(this)
+            : SimpleObject2::GetInterface(id);
+}
+
+CreateMouseCallBack* FlakesMaxObject::GetCreateMouseCallBack()
+{
+    return nullptr;
+} 
+
+const MCHAR* FlakesMaxObject::GetObjectName()
+{
+    return FlakesMaxObjectFriendlyClassName;
 }
 
 namespace
