@@ -69,11 +69,11 @@ copy /Y "$(TargetPath)" "$(SolutionDir)..\sandbox\max2017\Current\"
 if not "$(Configuration)" == "Ship" copy /Y "$(TargetDir)\$(TargetName).pdb" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
 if not "$(Configuration)" == "Ship" copy /Y "$(TargetDir)\$(TargetName).pdb" "$(SolutionDir)..\sandbox\max2017\Current\"
 
-copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
-copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\Current\"
+copy /Y "$(SolutionDir)..\flakesobject\build\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+copy /Y "$(SolutionDir)..\flakesobject\build\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\Current\"
 
-if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
-if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\Current\"
+if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\Current\"
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -98,11 +98,11 @@ copy /Y "$(TargetPath)" "$(SolutionDir)..\sandbox\max2017\Current\"
 if not "$(Configuration)" == "Ship" copy /Y "$(TargetDir)\$(TargetName).pdb" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
 if not "$(Configuration)" == "Ship" copy /Y "$(TargetDir)\$(TargetName).pdb" "$(SolutionDir)..\sandbox\max2017\Current\"
 
-copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
-copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\Current\"
+copy /Y "$(SolutionDir)..\flakesobject\build\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+copy /Y "$(SolutionDir)..\flakesobject\build\$(Configuration)\flakesobject.dll" "$(SolutionDir)..\sandbox\max2017\Current\"
 
-if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
-if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build-$(Configuration)\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\Current\"
+if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\$(Configuration)\"
+if "$(Configuration)" == "Debug" copy /Y "$(SolutionDir)..\flakesobject\build\$(Configuration)\flakesobject.pdb" "$(SolutionDir)..\sandbox\max2017\Current\"
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>

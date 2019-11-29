@@ -53,6 +53,7 @@
 // 3ds Max headers.
 #include "appleseed-max-common/_beginmaxheaders.h"
 #include <assert1.h>
+#include <mouseman.h>
 #include <paramtype.h>
 #include "appleseed-max-common/_endmaxheaders.h"
 
@@ -72,8 +73,55 @@ namespace bf = boost::filesystem;
 namespace
 {
     const wchar_t* FlakesMaxObjectFriendlyClassName = L"Flakes";
+
+    class FlakesMaxObjectCreateCallBack
+      : public CreateMouseCallBack
+    {
+      public:
+        int proc(
+            ViewExp*    vpt,
+            int         msg,
+            int         point,
+            int         flags,
+            IPoint2     m,
+            Matrix3&    mat) override
+        {
+            if (vpt == nullptr || !vpt->IsAlive())
+            {
+                DbgAssert(L("Invalid viewport!"));
+                return false;
+            }
+
+            if (msg == MOUSE_FREEMOVE)
+                vpt->SnapPreview(m, m);
+
+            if (msg == MOUSE_POINT || msg == MOUSE_MOVE)
+            {
+                switch (point)
+                {
+                  case 0:
+                    mat.SetTrans(vpt->SnapPoint(m, m));
+                    break;
+
+                  case 1:
+                    if (msg == MOUSE_POINT)
+                        return CREATE_STOP;
+                    mat.SetTrans(vpt->SnapPoint(m, m));
+                    break;
+                }
+            }
+            else
+            {
+                if (msg == MOUSE_ABORT)
+                    return CREATE_ABORT;
+            }
+
+            return true;
+        }
+    };
 }
 
+FlakesMaxObjectCreateCallBack g_flakesmaxobject_createcallback;
 FlakesMaxObjectClassDesc g_flakesmaxobject_classdesc;
 
 
@@ -344,7 +392,7 @@ BaseInterface* FlakesMaxObject::GetInterface(Interface_ID id)
 
 CreateMouseCallBack* FlakesMaxObject::GetCreateMouseCallBack()
 {
-    return nullptr;
+    return &g_flakesmaxobject_createcallback;
 } 
 
 const MCHAR* FlakesMaxObject::GetObjectName()
