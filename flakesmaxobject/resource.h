@@ -5,6 +5,7 @@
 #define IDD_FORMVIEW_PARAMS             1000
 #define IDS_FORMVIEW_PARAMS_TITLE       1001
 
+#define IDC_BASE_OBJECT                 1009
 #define IDC_LABEL_BASE_OBJECT           1010
 #define IDC_TEXTEDIT_BASE_OBJECT        1011
 #define IDS_BASE_OBJECT                 1012
@@ -46,7 +47,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        104
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1009
+#define _APS_NEXT_CONTROL_VALUE         1010
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

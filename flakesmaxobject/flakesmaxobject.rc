@@ -55,7 +55,6 @@ STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif", 0, 0, 0x1
 BEGIN
     LTEXT           "Base Object:",IDC_LABEL_BASE_OBJECT,7,6,59,8
-    CONTROL         "Base Object TextEdit",IDC_TEXTEDIT_BASE_OBJECT,"CustEdit",WS_TABSTOP,66,6,42,10
     LTEXT           "Mode:",IDC_LABEL_MODE,7,20,59,8
     COMBOBOX        IDC_COMBO_MODE,66,20,42,10,CBS_DROPDOWNLIST | CBS_SORT | WS_VSCROLL | WS_TABSTOP
     LTEXT           "Voxel Size:",IDC_LABEL_VOXEL_SIZE,7,34,59,8
@@ -79,6 +78,7 @@ BEGIN
     CONTROL         "Flakes per Voxel",IDC_EDIT_FLAKES_PER_VOXEL,"CustEdit",WS_TABSTOP,66,90,33,10
     CONTROL         "Flakes per Voxel Spinner",IDC_SPINNER_FLAKES_PER_VOXEL,
                     "SpinnerControl",WS_TABSTOP,100,90,6,10
+    CONTROL         "Custom1",IDC_BASE_OBJECT,"CustButton",WS_TABSTOP,66,4,42,12
 END
 
 
@@ -95,6 +95,7 @@ BEGIN
         VERTGUIDE, 5
         VERTGUIDE, 66
         BOTTOMMARGIN, 104
+        HORZGUIDE, 16
     END
 END
 #endif    // APSTUDIO_INVOKED

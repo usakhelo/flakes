@@ -166,8 +166,8 @@ namespace
 
         // --- Parameters specifications ---
 
-        ParamIdBaseObject, L"base_object", TYPE_STRING, 0, IDS_BASE_OBJECT,
-            p_ui, TYPE_EDITBOX, IDC_TEXTEDIT_BASE_OBJECT,
+        ParamIdBaseObject, L"base_object", TYPE_INODE, 0, IDS_BASE_OBJECT,
+            p_ui, TYPE_PICKNODEBUTTON, IDC_BASE_OBJECT,
         p_end,
 
         ParamIdMode, L"mode", TYPE_INT, 0, IDS_MODE,
@@ -636,7 +636,10 @@ void FlakesMaxObject::BuildMesh(TimeValue t)
         mesh.setVert(i, Size * Point3(Vertices[i * 3 + 0], -Vertices[i * 3 + 2], Vertices[i * 3 + 1]));
 
     for (int i = 0; i < TriangleCount; ++i)
+    {
         mesh.faces[i].setVerts(Triangles[i * 3 + 0], Triangles[i * 3 + 1], Triangles[i * 3 + 2]);
+        mesh.faces[i].setEdgeVisFlags(1, 1, 1);
+    }
 
     mesh.InvalidateGeomCache();
 }
